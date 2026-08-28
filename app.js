@@ -343,8 +343,8 @@
   // ---------- file handling ----------
   async function handleFile(file) {
     uploadError.hidden = true;
-    if (!file || !/\.pptx$/i.test(file.name)) {
-      uploadError.textContent = "Please choose a .pptx file (PowerPoint). Older .ppt files aren't supported — re-save as .pptx first.";
+    if (!file || !/\.(pptx|ppsx)$/i.test(file.name)) {
+      uploadError.textContent = "Please choose a .pptx or .ppsx file (PowerPoint). Older .ppt files aren't supported — re-save as .pptx first.";
       uploadError.hidden = false;
       return;
     }
