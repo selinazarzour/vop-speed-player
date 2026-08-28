@@ -1,11 +1,13 @@
 # ⏩ VOP Speed Player
 
+**🔗 Live site: [selinazarzour.github.io/vop-speed-player](https://selinazarzour.github.io/vop-speed-player/)**
+
 Watch narrated (voice-over) PowerPoints **at any speed**, right in your browser.
 
 Professors love recording lectures as PowerPoint voice-overs — but PowerPoint only
 plays them back at 1x. This tool fixes that:
 
-1. **Drop your `.pptx`** onto the page
+1. **Drop your `.pptx` or `.ppsx`** onto the page
 2. It extracts the narration that "Record Slide Show" embeds on each slide
 3. **Play at 0.75x – 3x** with the slides, auto-advancing when narration ends
 
@@ -21,12 +23,12 @@ plays them back at 1x. This tool fixes that:
 
 It's a fully static site — no build step, no dependencies to install.
 
-- Open the live site, or
+- Open the [live site](https://selinazarzour.github.io/vop-speed-player/), or
 - Clone and serve locally: `python3 -m http.server` then open http://localhost:8000
 
 ## 🧠 How it works
 
-A `.pptx` is just a zip file. `ppt/presentation.xml` lists the slides in order, and each
+A `.pptx` (or `.ppsx` slideshow — same format, different extension) is just a zip file. `ppt/presentation.xml` lists the slides in order, and each
 slide's `_rels/slideN.xml.rels` points at the media PowerPoint embedded when you recorded
 narration (usually an `.m4a` in `ppt/media/`). We pull those out as blob URLs, render the
 slides with [pptx-preview](https://www.npmjs.com/package/pptx-preview), and play the
