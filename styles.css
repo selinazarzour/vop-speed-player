@@ -216,6 +216,18 @@ main { flex: 1; position: relative; z-index: 1; width: 100%; max-width: 1080px; 
   background: #000;
 }
 
+.laser-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ff5252 0%, #e30000 55%, rgba(227, 0, 0, 0) 75%);
+  box-shadow: 0 0 10px 4px rgba(255, 40, 40, 0.75), 0 0 24px 10px rgba(255, 40, 40, 0.35);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+
 .no-audio-tag {
   position: absolute;
   top: 12px;

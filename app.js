@@ -102,6 +102,15 @@
 
     // ordered slide list from <p:sldIdLst>
     const presDoc = parseXml(await presXmlFile.async("string"));
+
+    // real slide dimensions (EMUs) — decks can be 4:3, 16:9, or custom
+    let aspect = 9 / 16, slideCx = 12192000, slideCy = 6858000;
+    const sldSz = presDoc.getElementsByTagNameNS("*", "sldSz")[0];
+    if (sldSz) {
+      const cx = Number(sldSz.getAttribute("cx")), cy = Number(sldSz.getAttribute("cy"));
+      if (cx > 0 && cy > 0) { aspect = cy / cx; slideCx = cx; slideCy = cy; }
+    }
+
     const slidePaths = [];
     const sldIds = presDoc.getElementsByTagNameNS("*", "sldId");
     for (const sld of sldIds) {
@@ -113,7 +122,7 @@
 
     const parsed = [];
     for (const slidePath of slidePaths) {
-      const entry = { mediaUrl: null, mediaKind: null, text: "" };
+      const entry = { mediaUrl: null, mediaKind: null, text: "", laser: null };
 
       // extract visible text (used for fallback rendering)
       const slideFile = zip.file(slidePath);
@@ -124,6 +133,23 @@
           if (t.textContent.trim()) texts.push(t.textContent.trim());
         }
         entry.text = texts.join(" · ").slice(0, 300);
+
+        // laser pointer traces recorded with "Record Slide Show"
+        // (p14:laserTraceLst -> tracePtLst -> tracePt t="ms" x/y in EMU)
+        const traces = [];
+        for (const lst of doc.getElementsByTagNameNS("*", "laserTraceLst")) {
+          for (const ptLst of lst.getElementsByTagNameNS("*", "tracePtLst")) {
+            const pts = [];
+            for (const pt of ptLst.getElementsByTagNameNS("*", "tracePt")) {
+              const t = Number(pt.getAttribute("t")), x = Number(pt.getAttribute("x")), y = Number(pt.getAttribute("y"));
+              if (isFinite(t) && isFinite(x) && isFinite(y)) {
+                pts.push({ t: t / 1000, x: x / slideCx, y: y / slideCy }); // seconds + fractions
+              }
+            }
+            if (pts.length) { pts.sort((a, b) => a.t - b.t); traces.push(pts); }
+          }
+        }
+        if (traces.length) entry.laser = traces;
       }
 
       // find narration media in the slide's rels
@@ -158,15 +184,24 @@
       }
       parsed.push(entry);
     }
-    return parsed;
+    return { slides: parsed, aspect };
   }
 
   // ---------- slide rendering ----------
-  function renderSlides(arrayBuffer, count) {
+  function renderSlides(arrayBuffer, count, aspect) {
     renderRoot.innerHTML = "";
     slideEls = null;
-    const width = Math.min(renderRoot.clientWidth || 960, 960);
-    const height = Math.round(width * 9 / 16);
+    // fit the deck's true aspect ratio inside the stage width AND the viewport height
+    // measure from <main> — renderRoot is inside the still-hidden player view
+    const mainEl = document.querySelector("main");
+    const avail = mainEl ? mainEl.clientWidth - 42 : 0; // minus main padding + stage border
+    let width = Math.min(avail > 300 ? avail : 960, 1040);
+    let height = Math.round(width * aspect);
+    const maxHeight = Math.max(320, Math.round(window.innerHeight * 0.62));
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = Math.round(height / aspect);
+    }
     return new Promise((resolve) => {
       let settled = false;
       const done = () => { if (!settled) { settled = true; resolve(); } };
@@ -252,6 +287,43 @@
   function escapeHtml(s) {
     return (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
+
+  // ---------- laser pointer replay ----------
+  // Timestamps in the traces are relative to the slide's narration start,
+  // so reading currentTime keeps the dot in sync at ANY playback speed.
+  const stage = $("stage");
+  const laserDot = $("laserDot");
+  const LASER_LINGER_S = 0.4;
+
+  function laserPosAt(traces, t) {
+    for (const pts of traces) {
+      if (t < pts[0].t || t > pts[pts.length - 1].t + LASER_LINGER_S) continue;
+      if (t >= pts[pts.length - 1].t) return pts[pts.length - 1];
+      for (let i = 1; i < pts.length; i++) {
+        if (t <= pts[i].t) {
+          const a = pts[i - 1], b = pts[i];
+          const f = (t - a.t) / Math.max(b.t - a.t, 1e-6);
+          return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+        }
+      }
+    }
+    return null;
+  }
+
+  function laserLoop() {
+    requestAnimationFrame(laserLoop);
+    const s = slides[current];
+    if (playerView.hidden || !s || !s.laser || !s.mediaUrl) { laserDot.hidden = true; return; }
+    const pos = laserPosAt(s.laser, activeMedia().currentTime);
+    if (!pos) { laserDot.hidden = true; return; }
+    const host = (slideEls && slideEls[current]) || renderRoot;
+    const hostRect = host.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    laserDot.style.left = `${hostRect.left - stageRect.left + pos.x * hostRect.width}px`;
+    laserDot.style.top = `${hostRect.top - stageRect.top + pos.y * hostRect.height}px`;
+    laserDot.hidden = false;
+  }
+  requestAnimationFrame(laserLoop);
 
   // ---------- playback ----------
   const activeMedia = () => (slides[current] && slides[current].mediaKind === "video" ? cameoVideo : audio);
@@ -353,9 +425,10 @@
     try {
       const buf = await file.arrayBuffer();
       cleanup();
-      slides = await parsePptx(buf);
+      const parsed = await parsePptx(buf);
+      slides = parsed.slides;
       loadingText.textContent = "Rendering slides…";
-      await renderSlides(buf, slides.length);
+      await renderSlides(buf, slides.length, parsed.aspect);
 
       fileNameEl.textContent = file.name;
       slideTotalEl.textContent = slides.length;
