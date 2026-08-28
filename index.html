@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VOP Speed Player — Watch narrated PowerPoints at any speed</title>
+  <meta name="description" content="Upload a voice-over PowerPoint (.pptx) and watch it at 1.5x, 2x or any speed. 100% private — your file never leaves your browser." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏩</text></svg>" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="logo">
+      <span class="logo-icon">⏩</span>
+      <span class="logo-text">VOP <em>Speed Player</em></span>
+    </div>
+    <a class="gh-link" href="https://github.com/selinazarzour/vop-speed-player" target="_blank" rel="noopener">GitHub</a>
+  </header>
+
+  <main>
+    <!-- ===================== UPLOAD VIEW ===================== -->
+    <section id="uploadView" class="upload-view">
+      <h1>Watch narrated PowerPoints<br /><span class="grad">at any speed.</span></h1>
+      <p class="subtitle">
+        Lecture recorded as a voice-over PowerPoint? Drop the <strong>.pptx</strong> here and
+        play the narration at 1.5x, 2x, 3x — with the slides, right in your browser.
+      </p>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload a .pptx file">
+        <div class="dz-inner">
+          <div class="dz-icon">📂</div>
+          <p class="dz-title">Drag &amp; drop your <code>.pptx</code></p>
+          <p class="dz-sub">or <span class="dz-browse">click to browse</span></p>
+        </div>
+        <input type="file" id="fileInput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden />
+      </div>
+
+      <p id="uploadError" class="upload-error" hidden></p>
+
+      <ul class="perks">
+        <li>🔒 100% private — the file is processed entirely in your browser</li>
+        <li>🎙️ Auto-extracts the narration recorded on each slide</li>
+        <li>⚡ No install, no account, no upload to any server</li>
+      </ul>
+    </section>
+
+    <!-- ===================== LOADING VIEW ===================== -->
+    <section id="loadingView" class="loading-view" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loadingText">Unpacking your presentation…</p>
+    </section>
+
+    <!-- ===================== PLAYER VIEW ===================== -->
+    <section id="playerView" class="player-view" hidden>
+      <div class="player-top">
+        <button id="backBtn" class="ghost-btn" title="Load another file">← New file</button>
+        <span id="fileName" class="file-name"></span>
+        <span id="narrationBadge" class="badge" hidden>🎙️ narration found</span>
+      </div>
+
+      <div id="stage" class="stage">
+        <div id="renderRoot" class="render-root"></div>
+        <div id="fallbackSlide" class="fallback-slide" hidden></div>
+        <video id="cameoVideo" class="cameo" playsinline hidden></video>
+        <div id="noAudioTag" class="no-audio-tag" hidden>no narration on this slide</div>
+      </div>
+
+      <div class="controls-card">
+        <div class="progress-row">
+          <span id="timeNow" class="time">0:00</span>
+          <div id="progressBar" class="progress-bar" role="slider" aria-label="Seek narration">
+            <div id="progressFill" class="progress-fill"></div>
+          </div>
+          <span id="timeTotal" class="time">0:00</span>
+        </div>
+
+        <div class="controls-row">
+          <div class="nav-controls">
+            <button id="prevBtn" class="icon-btn" title="Previous slide (←)">⏮</button>
+            <button id="playBtn" class="play-btn" title="Play / pause (space)">▶</button>
+            <button id="nextBtn" class="icon-btn" title="Next slide (→)">⏭</button>
+          </div>
+
+          <div class="slide-counter"><span id="slideNow">1</span> / <span id="slideTotal">1</span></div>
+
+          <label class="autoplay-toggle" title="Automatically advance to the next slide when narration ends">
+            <input type="checkbox" id="autoplayToggle" checked />
+            <span>auto-advance</span>
+          </label>
+        </div>
+
+        <div class="speed-row" id="speedRow" aria-label="Playback speed">
+          <span class="speed-label">Speed</span>
+          <!-- chips injected by JS -->
+        </div>
+      </div>
+
+      <p class="kbd-hints">
+        <kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> slides &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    Made with ❤️ for friends drowning in narrated lectures · nothing is uploaded, everything runs locally
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptx-preview@1.0.5/dist/pptx-preview.umd.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
