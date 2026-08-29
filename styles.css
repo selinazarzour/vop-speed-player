@@ -187,6 +187,10 @@ main { flex: 1; position: relative; z-index: 1; width: 100%; max-width: 1080px; 
 }
 
 .render-root { width: 100%; display: flex; justify-content: center; overflow: hidden; }
+/* Slide text must NOT inherit the site's UI font (Inter is wider than
+   PowerPoint's Calibri and causes spurious line wraps). Carlito is
+   metric-compatible with Calibri, so line breaks match PowerPoint. */
+.render-root { font-family: Carlito, Calibri, "Segoe UI", Arial, Helvetica, sans-serif; letter-spacing: normal; }
 /* pptx-preview renders all slides stacked; we show one at a time via JS */
 .render-root .pptx-preview-wrapper { background: transparent !important; overflow: hidden !important; }
 

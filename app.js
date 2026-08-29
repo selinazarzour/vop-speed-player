@@ -236,6 +236,37 @@
     return null;
   }
 
+  // PowerPoint auto-shrinks text that exceeds its box ("autofit"), but
+  // pptx-preview renders fixed-size shape boxes and lets text overflow.
+  // Mimic autofit: scale down a shape's inline font sizes until the text
+  // fits its box. Runs lazily the first time a slide becomes visible
+  // (elements must be visible to measure).
+  function autofitSlideText(slideEl) {
+    if (!slideEl || slideEl.dataset.autofitDone) return;
+    slideEl.dataset.autofitDone = "1";
+    for (const shape of slideEl.querySelectorAll(".shape-wrapper")) {
+      const tw = shape.querySelector(".text-wrapper");
+      if (!tw) continue;
+      const boxH = shape.clientHeight;
+      if (!boxH) continue;
+      const runs = [];
+      for (const n of tw.querySelectorAll("*")) {
+        const fs = parseFloat(n.style && n.style.fontSize);
+        if (fs) runs.push({ n, fs, ls: parseFloat(n.style.letterSpacing) || 0 });
+      }
+      if (!runs.length) continue;
+      let scale = 1;
+      const MIN_SCALE = 0.5;
+      while (tw.scrollHeight > boxH + 2 && scale > MIN_SCALE) {
+        scale = Math.max(MIN_SCALE, scale - 0.05);
+        for (const r of runs) {
+          r.n.style.fontSize = `${r.fs * scale}px`;
+          if (r.ls) r.n.style.letterSpacing = `${r.ls * scale}px`;
+        }
+      }
+    }
+  }
+
   function showSlide(i) {
     current = Math.max(0, Math.min(i, slides.length - 1));
     slideNowEl.textContent = current + 1;
@@ -248,6 +279,7 @@
       slideEls.forEach((el, idx) => { el.style.display = idx === current ? "" : "none"; });
       renderRoot.hidden = false;
       fallbackSlide.hidden = true;
+      autofitSlideText(slideEls[current]);
     } else {
       renderRoot.hidden = true;
       fallbackSlide.hidden = false;
