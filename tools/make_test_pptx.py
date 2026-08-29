@@ -59,7 +59,7 @@ def marker_geom(cx, cy):
     bx, by = cx - bw - 100000, cy - bh - 100000
     return bx, by, bw, bh
 
-def slide_xml(title, cx, cy, laser=""):
+def slide_xml(title, cx, cy, laser="", extra=""):
     bx, by, bw, bh = marker_geom(cx, cy)
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main">
@@ -72,7 +72,7 @@ def slide_xml(title, cx, cy, laser=""):
 <p:sp><p:nvSpPr><p:cNvPr id="3" name="CornerMarker"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
 <p:spPr><a:xfrm><a:off x="{bx}" y="{by}"/><a:ext cx="{bw}" cy="{bh}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></p:spPr>
 <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="1800"/><a:t>BOTTOM-RIGHT-MARKER</a:t></a:r></a:p></p:txBody></p:sp>
-{laser}</p:spTree></p:cSld><p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:clrMapOvr></p:sld>"""
+{extra}{laser}</p:spTree></p:cSld><p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:clrMapOvr></p:sld>"""
 
 SLIDE1_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -125,7 +125,13 @@ def build(path, cx, cy):
         z.writestr("ppt/presentation.xml", pres(cx, cy))
         z.writestr("ppt/_rels/presentation.xml.rels", PRES_RELS)
         z.writestr("ppt/slides/slide1.xml", slide_xml("Hello from Slide One", cx, cy, laser))
-        z.writestr("ppt/slides/slide2.xml", slide_xml("Slide Two - no narration", cx, cy))
+        overflow_shape = (f'<p:sp><p:nvSpPr><p:cNvPr id="4" name="OverflowBox"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+            f'<p:spPr><a:xfrm><a:off x="500000" y="2500000"/><a:ext cx="{cx//4}" cy="{cy//12}"/></a:xfrm>'
+            f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>'
+            f'<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="4000"/>'
+            f'<a:t>OVERFLOW-TEST this long sentence cannot possibly fit in such a tiny box at forty points</a:t>'
+            f'</a:r></a:p></p:txBody></p:sp>')
+        z.writestr("ppt/slides/slide2.xml", slide_xml("Slide Two - no narration", cx, cy, extra=overflow_shape))
         z.writestr("ppt/slides/_rels/slide1.xml.rels", SLIDE1_RELS)
         z.writestr("ppt/slides/_rels/slide2.xml.rels", SLIDE2_RELS)
         z.writestr("ppt/slideLayouts/slideLayout1.xml", LAYOUT)
