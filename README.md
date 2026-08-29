@@ -16,6 +16,8 @@ plays them back at 1x. This tool fixes that:
 - 🔒 **100% private** — the file is unpacked with JSZip *inside your browser*; nothing is uploaded anywhere
 - 🎙️ Auto-detects per-slide narration audio (and video "cameo" recordings)
 - 🔴 Replays the presenter's **laser pointer** movements, synced to the narration at any speed
+- 💾 **Recent files** history with resume — stored in your browser (IndexedDB), never uploaded
+- 📦 **Save offline copy** — exports one self-contained HTML file (player + slides + narration) you can open without internet or send to a friend
 - ⚡ Speed chips: 0.75x → 3x, pitch-corrected
 - ⏭ Auto-advance to the next slide when narration ends
 - ⌨️ Keyboard shortcuts: `space` play/pause, `←`/`→` slides, `↑`/`↓` speed

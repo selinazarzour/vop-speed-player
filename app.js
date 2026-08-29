@@ -314,6 +314,7 @@
       }, NO_AUDIO_ADVANCE_MS);
     }
     updatePlayIcon();
+    rememberPosition();
   }
 
   function escapeHtml(s) {
@@ -427,6 +428,7 @@
 
   // ---------- speed chips ----------
   function buildSpeedChips() {
+    for (const stale of speedRow.querySelectorAll(".speed-chip")) stale.remove(); // offline-copy DOM snapshot
     for (const s of SPEEDS) {
       const b = document.createElement("button");
       b.className = "speed-chip" + (s === speed ? " active" : "");
@@ -444,6 +446,154 @@
     }
   }
 
+  // ---------- recent-files history (IndexedDB, stays on this device) ----------
+  const DB_NAME = "vop-player", DB_STORE = "recent", HISTORY_MAX = 12;
+  let currentFileName = null, currentBuffer = null, currentRecentId = null;
+
+  function idbOpen() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE, { keyPath: "id" });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function idbTx(mode, fn) {
+    return idbOpen().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, mode);
+      const out = fn(tx.objectStore(DB_STORE));
+      tx.oncomplete = () => { db.close(); resolve(out && out.result !== undefined ? out.result : undefined); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    }));
+  }
+  const idbAll = () => idbTx("readonly", (s) => s.getAll());
+  const idbPut = (entry) => idbTx("readwrite", (s) => s.put(entry));
+  const idbDelete = (id) => idbTx("readwrite", (s) => s.delete(id));
+
+  async function saveToHistory(name, buf, slideCount, narrated) {
+    const id = `${name}|${buf.byteLength}`;
+    currentRecentId = id;
+    try {
+      await idbPut({ id, name, size: buf.byteLength, slideCount, narrated, buffer: buf, lastSlide: 0, openedAt: Date.now() });
+      // prune oldest beyond cap
+      const all = await idbAll();
+      if (all.length > HISTORY_MAX) {
+        all.sort((a, b) => b.openedAt - a.openedAt);
+        for (const old of all.slice(HISTORY_MAX)) await idbDelete(old.id);
+      }
+    } catch (e) {
+      console.warn("History unavailable (private mode or quota):", e);
+      currentRecentId = null;
+    }
+  }
+
+  function rememberPosition() {
+    if (!currentRecentId) return;
+    idbTx("readwrite", (s) => {
+      const g = s.get(currentRecentId);
+      g.onsuccess = () => {
+        const e = g.result;
+        if (e) { e.lastSlide = current; e.openedAt = Date.now(); s.put(e); }
+      };
+    }).catch(() => {});
+  }
+
+  const fmtSize = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.ceil(b / 1024)} KB`);
+  const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+    " " + new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+  async function renderRecent() {
+    const section = $("recentSection"), list = $("recentList");
+    if (!section) return;
+    let entries = [];
+    try { entries = await idbAll(); } catch { section.hidden = true; return; }
+    entries.sort((a, b) => b.openedAt - a.openedAt);
+    section.hidden = entries.length === 0;
+    list.innerHTML = "";
+    for (const e of entries) {
+      const li = document.createElement("li");
+      li.className = "recent-item";
+      const meta = `${e.slideCount} slides · ${fmtSize(e.size)} · ${fmtDate(e.openedAt)}` +
+        (e.lastSlide > 0 ? ` · resumes at slide ${e.lastSlide + 1}` : "");
+      li.innerHTML = `<button class="recent-open"><span class="recent-name"></span><span class="recent-meta">${meta}</span></button><button class="recent-del" title="Remove from history">✕</button>`;
+      li.querySelector(".recent-name").textContent = e.name;
+      li.querySelector(".recent-open").addEventListener("click", () =>
+        loadPresentation(e.name, e.buffer, { save: false, resumeSlide: e.lastSlide || 0, recentId: e.id }));
+      li.querySelector(".recent-del").addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        try { await idbDelete(e.id); } catch {}
+        renderRecent();
+      });
+      list.appendChild(li);
+    }
+  }
+
+  // ---------- offline export (single self-contained HTML) ----------
+  const CDN_SCRIPTS = [
+    "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+    "https://cdn.jsdelivr.net/npm/pptx-preview@1.0.5/dist/pptx-preview.umd.js",
+  ];
+
+  function bufToBase64(buf) {
+    const bytes = new Uint8Array(buf);
+    let out = "";
+    const CHUNK = 32768;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      out += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(out);
+  }
+
+  const escapeScript = (s) => s.replace(/<\/script>/gi, "<\\/script>");
+
+  async function exportStandalone() {
+    if (!currentBuffer) return;
+    const btn = $("exportBtn");
+    btn.disabled = true;
+    const oldLabel = btn.textContent;
+    btn.textContent = "packaging…";
+    try {
+      const [css, appJs, ...libs] = await Promise.all(
+        ["styles.css", "app.js", ...CDN_SCRIPTS].map((u) => fetch(u).then((r) => {
+          if (!r.ok) throw new Error(`fetch ${u}: ${r.status}`);
+          return r.text();
+        }))
+      );
+      const b64 = bufToBase64(currentBuffer);
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${currentFileName} — VOP Speed Player (offline)</title>
+<style>${css}</style>
+</head>
+<body>
+<div class="bg-glow" aria-hidden="true"></div>
+${document.querySelector(".site-header").outerHTML}
+${document.querySelector("main").outerHTML.replace(/<div id="renderRoot" class="render-root">[\s\S]*?<\/div>\s*<div id="fallbackSlide"/, '<div id="renderRoot" class="render-root"></div><div id="fallbackSlide"')}
+<footer class="site-footer">Offline copy — everything runs locally in this file. Made with VOP Speed Player.</footer>
+<script>${escapeScript(libs[0])}<\/script>
+<script>${escapeScript(libs[1])}<\/script>
+<script>window.__EMBEDDED_PPTX_B64__=${JSON.stringify(b64)};window.__EMBEDDED_PPTX_NAME__=${JSON.stringify(currentFileName)};<\/script>
+<script>${escapeScript(appJs)}<\/script>
+</body>
+</html>`;
+      const blob = new Blob([html], { type: "text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = currentFileName.replace(/\.(pptx|ppsx)$/i, "") + " (offline player).html";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert(`Couldn't build the offline copy: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldLabel;
+    }
+  }
+
   // ---------- file handling ----------
   async function handleFile(file) {
     uploadError.hidden = true;
@@ -452,25 +602,36 @@
       uploadError.hidden = false;
       return;
     }
+    const buf = await file.arrayBuffer();
+    loadPresentation(file.name, buf, { save: true });
+  }
+
+  async function loadPresentation(name, buf, opts = {}) {
     show(loadingView);
     loadingText.textContent = "Unpacking your presentation…";
     try {
-      const buf = await file.arrayBuffer();
       cleanup();
       const parsed = await parsePptx(buf);
       slides = parsed.slides;
       loadingText.textContent = "Rendering slides…";
       await renderSlides(buf, slides.length, parsed.aspect);
 
-      fileNameEl.textContent = file.name;
+      currentFileName = name;
+      currentBuffer = buf;
+      currentRecentId = opts.recentId || null;
+      fileNameEl.textContent = name;
       slideTotalEl.textContent = slides.length;
       const withAudio = slides.filter((s) => s.mediaUrl).length;
       narrationBadge.hidden = withAudio === 0;
       narrationBadge.textContent = `🎙️ narration on ${withAudio}/${slides.length} slides`;
 
+      if (opts.save && !window.__EMBEDDED_PPTX_B64__) {
+        saveToHistory(name, buf, slides.length, withAudio).then(renderRecent);
+      }
+
       isPlaying = false;
       show(playerView);
-      showSlide(0);
+      showSlide(Math.min(opts.resumeSlide || 0, slides.length - 1));
       if (withAudio === 0) {
         noAudioTag.textContent = "no narration found in this file";
       } else {
@@ -519,7 +680,7 @@
   playBtn.addEventListener("click", togglePlay);
   prevBtn.addEventListener("click", () => showSlide(current - 1));
   nextBtn.addEventListener("click", () => showSlide(current + 1));
-  backBtn.addEventListener("click", () => { cleanup(); fileInput.value = ""; show(uploadView); });
+  backBtn.addEventListener("click", () => { cleanup(); fileInput.value = ""; show(uploadView); renderRecent(); });
 
   document.addEventListener("keydown", (e) => {
     if (playerView.hidden) return;
@@ -540,5 +701,17 @@
 
   // ---------- init ----------
   buildSpeedChips();
-  show(uploadView);
+  $("exportBtn").addEventListener("click", exportStandalone);
+
+  if (window.__EMBEDDED_PPTX_B64__) {
+    // offline copy: boot straight into the embedded presentation
+    $("exportBtn").hidden = true; // already offline; nothing to re-package
+    const bin = atob(window.__EMBEDDED_PPTX_B64__);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    loadPresentation(window.__EMBEDDED_PPTX_NAME__ || "presentation.pptx", bytes.buffer, { save: false });
+  } else {
+    show(uploadView);
+    renderRecent();
+  }
 })();
