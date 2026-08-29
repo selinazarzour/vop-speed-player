@@ -122,6 +122,53 @@ main { flex: 1; position: relative; z-index: 1; width: 100%; max-width: 1080px; 
   font-size: 0.92rem;
 }
 
+/* ---------- recent files ---------- */
+.recent-section { max-width: 620px; margin: 34px auto 0; text-align: left; }
+.recent-title { font-size: 1rem; font-weight: 700; margin-bottom: 12px; }
+.recent-hint { font-weight: 500; font-size: 0.78rem; color: var(--text-dim); margin-left: 8px; }
+.recent-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.recent-item {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.recent-item:hover { border-color: rgba(124, 92, 255, 0.5); }
+.recent-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  padding: 12px 14px;
+  cursor: pointer;
+  min-width: 0;
+}
+.recent-name { font-weight: 600; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-meta { color: var(--text-dim); font-size: 0.78rem; }
+.recent-del {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font: inherit;
+  padding: 0 14px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.recent-del:hover { color: #ff8d8d; }
+
+.export-btn { margin-left: auto; color: var(--accent-2); border-color: rgba(33, 212, 253, 0.35); }
+.export-btn:hover { color: var(--accent-2); border-color: rgba(33, 212, 253, 0.7); }
+.export-btn:disabled { opacity: 0.5; cursor: default; }
+
 .perks {
   list-style: none;
   margin: 40px auto 0;

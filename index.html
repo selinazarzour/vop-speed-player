@@ -42,9 +42,15 @@
 
       <p id="uploadError" class="upload-error" hidden></p>
 
+      <section id="recentSection" class="recent-section" hidden>
+        <h2 class="recent-title">Recent files <span class="recent-hint">stored only on this device</span></h2>
+        <ul id="recentList" class="recent-list"></ul>
+      </section>
+
       <ul class="perks">
         <li>🔒 100% private — the file is processed entirely in your browser</li>
         <li>🎙️ Auto-extracts the narration recorded on each slide</li>
+        <li>💾 Recent files &amp; your last position are remembered on this device</li>
         <li>⚡ No install, no account, no upload to any server</li>
       </ul>
     </section>
@@ -61,6 +67,7 @@
         <button id="backBtn" class="ghost-btn" title="Load another file">← New file</button>
         <span id="fileName" class="file-name"></span>
         <span id="narrationBadge" class="badge" hidden>🎙️ narration found</span>
+        <button id="exportBtn" class="ghost-btn export-btn" title="Download a single offline HTML file with the slides, narration and player built in — share it with anyone">⬇ Save offline copy</button>
       </div>
 
       <div id="stage" class="stage">
