@@ -400,3 +400,5 @@ kbd {
   .cameo { width: 130px; }
   .controls-card { padding: 14px; }
 }
+
+.version-tag { color: var(--accent-2); font-weight: 700; }
