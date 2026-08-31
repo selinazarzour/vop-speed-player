@@ -7,7 +7,7 @@
   <meta name="description" content="Upload a voice-over PowerPoint (.pptx) and watch it at 1.5x, 2x or any speed. 100% private — your file never leaves your browser." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Carlito:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=Caladea:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏩</text></svg>" />
 </head>
@@ -90,7 +90,9 @@
         <div class="controls-row">
           <div class="nav-controls">
             <button id="prevBtn" class="icon-btn" title="Previous slide (←)">⏮</button>
+            <button id="back15Btn" class="icon-btn seek-btn" title="Back 15 seconds (shift+←)">↺15</button>
             <button id="playBtn" class="play-btn" title="Play / pause (space)">▶</button>
+            <button id="fwd15Btn" class="icon-btn seek-btn" title="Forward 15 seconds (shift+→)">15↻</button>
             <button id="nextBtn" class="icon-btn" title="Next slide (→)">⏭</button>
           </div>
 
@@ -109,7 +111,7 @@
       </div>
 
       <p class="kbd-hints">
-        <kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> slides &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed
+        <kbd>space</kbd> play/pause &nbsp; <kbd>←</kbd><kbd>→</kbd> slides &nbsp; <kbd>shift</kbd>+<kbd>←</kbd><kbd>→</kbd> ±15s &nbsp; <kbd>↑</kbd><kbd>↓</kbd> speed
       </p>
     </section>
   </main>

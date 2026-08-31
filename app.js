@@ -84,6 +84,12 @@
   }
 
   // ---------- pptx parsing ----------
+  // PowerPoint substitutes we can render faithfully with free metric-compatible webfonts
+  const FONT_SUBS = {
+    "Calibri": "Carlito", "Calibri Light": "Carlito",
+    "Cambria": "Caladea", "Cambria Math": "Caladea",
+  };
+
   async function parsePptx(arrayBuffer) {
     const zip = await JSZip.loadAsync(arrayBuffer);
 
@@ -92,6 +98,28 @@
     if (!presXmlFile || !presRelsFile) {
       throw new Error("This doesn't look like a valid .pptx file.");
     }
+
+    // theme fonts: runs can reference "+mj-lt" (major/headings) or "+mn-lt" (minor/body)
+    let majorFont = null, minorFont = null;
+    const themeFile = zip.file(/^ppt\/theme\/theme\d*\.xml$/)[0];
+    if (themeFile) {
+      const themeDoc = parseXml(await themeFile.async("string"));
+      const mj = themeDoc.getElementsByTagNameNS("*", "majorFont")[0];
+      const mn = themeDoc.getElementsByTagNameNS("*", "minorFont")[0];
+      const latinOf = (el) => {
+        const l = el && el.getElementsByTagNameNS("*", "latin")[0];
+        return l ? l.getAttribute("typeface") : null;
+      };
+      majorFont = latinOf(mj);
+      minorFont = latinOf(mn);
+    }
+    const resolveFont = (tf) => {
+      if (!tf) return null;
+      if (tf === "+mj-lt") tf = majorFont;
+      else if (tf === "+mn-lt") tf = minorFont;
+      if (!tf) return null;
+      return FONT_SUBS[tf] || tf;
+    };
 
     // rId -> slide path
     const relsDoc = parseXml(await presRelsFile.async("string"));
@@ -122,7 +150,7 @@
 
     const parsed = [];
     for (const slidePath of slidePaths) {
-      const entry = { mediaUrl: null, mediaKind: null, text: "", laser: null };
+      const entry = { mediaUrl: null, mediaKind: null, text: "", laser: null, runFonts: new Map() };
 
       // extract visible text (used for fallback rendering)
       const slideFile = zip.file(slidePath);
@@ -133,6 +161,29 @@
           if (t.textContent.trim()) texts.push(t.textContent.trim());
         }
         entry.text = texts.join(" · ").slice(0, 300);
+
+        // per-run fonts: the renderer drops font-family, so map each run's
+        // text to the typeface declared in its rPr (or the paragraph default)
+        for (const run of doc.getElementsByTagNameNS("*", "r")) {
+          const tEl = run.getElementsByTagNameNS("*", "t")[0];
+          if (!tEl) continue;
+          const txt = tEl.textContent.trim();
+          if (!txt) continue;
+          let tf = null;
+          const rPr = run.getElementsByTagNameNS("*", "rPr")[0];
+          if (rPr) {
+            const latin = rPr.getElementsByTagNameNS("*", "latin")[0];
+            if (latin) tf = latin.getAttribute("typeface");
+          }
+          if (!tf && run.parentNode) {
+            const pPr = run.parentNode.getElementsByTagNameNS("*", "pPr")[0];
+            const defRPr = pPr && pPr.getElementsByTagNameNS("*", "defRPr")[0];
+            const latin = defRPr && defRPr.getElementsByTagNameNS("*", "latin")[0];
+            if (latin) tf = latin.getAttribute("typeface");
+          }
+          const font = resolveFont(tf);
+          if (font) entry.runFonts.set(txt, font);
+        }
 
         // laser pointer traces recorded with "Record Slide Show"
         // (p14:laserTraceLst -> tracePtLst -> tracePt t="ms" x/y in EMU)
@@ -236,11 +287,40 @@
     return null;
   }
 
+  // Re-apply each text run's original typeface (the renderer drops it).
+  // Must run BEFORE autofit, since the font changes text metrics.
+  function applyRunFonts(slideEl, fontMap) {
+    if (!fontMap || fontMap.size === 0) return;
+    for (const span of slideEl.querySelectorAll("span")) {
+      if (span.childElementCount) continue;
+      const txt = span.textContent.trim();
+      if (!txt) continue;
+      let font = fontMap.get(txt);
+      if (!font) {
+        // renderer may split/merge runs; fall back to containment match
+        for (const [k, v] of fontMap) {
+          if (k.includes(txt) || txt.includes(k)) { font = v; break; }
+        }
+      }
+      if (font) {
+        span.style.fontFamily = `"${font}", Carlito, Calibri, "Segoe UI", Arial, Helvetica, sans-serif`;
+      }
+    }
+  }
+
+  // Lazy per-slide preparation the first time a slide becomes visible
+  // (elements must be visible to measure for autofit).
+  function prepareSlide(slideEl, slideData) {
+    if (!slideEl || slideEl.dataset.prepared) return;
+    slideEl.dataset.prepared = "1";
+    applyRunFonts(slideEl, slideData && slideData.runFonts);
+    autofitSlideText(slideEl);
+  }
+
   // PowerPoint auto-shrinks text that exceeds its box ("autofit"), but
   // pptx-preview renders fixed-size shape boxes and lets text overflow.
   // Mimic autofit: scale down a shape's inline font sizes until the text
-  // fits its box. Runs lazily the first time a slide becomes visible
-  // (elements must be visible to measure).
+  // fits its box.
   function autofitSlideText(slideEl) {
     if (!slideEl || slideEl.dataset.autofitDone) return;
     slideEl.dataset.autofitDone = "1";
@@ -279,7 +359,7 @@
       slideEls.forEach((el, idx) => { el.style.display = idx === current ? "" : "none"; });
       renderRoot.hidden = false;
       fallbackSlide.hidden = true;
-      autofitSlideText(slideEls[current]);
+      prepareSlide(slideEls[current], slides[current]);
     } else {
       renderRoot.hidden = true;
       fallbackSlide.hidden = false;
@@ -293,6 +373,8 @@
     cameoVideo.hidden = true;
     noAudioTag.hidden = !!s.mediaUrl;
     playBtn.disabled = !s.mediaUrl;
+    $("back15Btn").disabled = !s.mediaUrl;
+    $("fwd15Btn").disabled = !s.mediaUrl;
     progressFill.style.width = "0%";
     timeNow.textContent = "0:00";
     timeTotal.textContent = "0:00";
@@ -566,6 +648,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>${currentFileName} — VOP Speed Player (offline)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=Caladea:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet" />
 <style>${css}</style>
 </head>
 <body>
@@ -677,7 +761,19 @@ ${document.querySelector("main").outerHTML.replace(/<div id="renderRoot" class="
     }
   });
 
+  function seekBy(deltaSeconds) {
+    const s = slides[current];
+    if (!s || !s.mediaUrl) return;
+    const m = activeMedia();
+    if (!m.duration) return;
+    // clamp just shy of the end so a +15 near the end doesn't fire "ended"
+    m.currentTime = Math.max(0, Math.min(m.duration - 0.1, m.currentTime + deltaSeconds));
+    onTimeUpdate();
+  }
+
   playBtn.addEventListener("click", togglePlay);
+  $("back15Btn").addEventListener("click", () => seekBy(-15));
+  $("fwd15Btn").addEventListener("click", () => seekBy(15));
   prevBtn.addEventListener("click", () => showSlide(current - 1));
   nextBtn.addEventListener("click", () => showSlide(current + 1));
   backBtn.addEventListener("click", () => { cleanup(); fileInput.value = ""; show(uploadView); renderRecent(); });
@@ -687,8 +783,8 @@ ${document.querySelector("main").outerHTML.replace(/<div id="renderRoot" class="
     if (e.target.tagName === "INPUT") return;
     switch (e.key) {
       case " ": e.preventDefault(); togglePlay(); break;
-      case "ArrowLeft": showSlide(current - 1); break;
-      case "ArrowRight": showSlide(current + 1); break;
+      case "ArrowLeft": if (e.shiftKey) seekBy(-15); else showSlide(current - 1); break;
+      case "ArrowRight": if (e.shiftKey) seekBy(15); else showSlide(current + 1); break;
       case "ArrowUp": e.preventDefault(); bumpSpeed(1); break;
       case "ArrowDown": e.preventDefault(); bumpSpeed(-1); break;
     }
