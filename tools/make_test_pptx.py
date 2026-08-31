@@ -114,7 +114,13 @@ THEME = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 def build(path, cx, cy):
     bx, by, bw, bh = marker_geom(cx, cy)
     mx, my = bx + bw // 2, by + bh // 2  # marker center
-    laser = ('<p14:laserTraceLst><p14:tracePtLst>'
+    font_shape = (f'<p:sp><p:nvSpPr><p:cNvPr id="5" name="FontTest"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
+             f'<p:spPr><a:xfrm><a:off x="500000" y="2200000"/><a:ext cx="{cx//2}" cy="{cy//10}"/></a:xfrm>'
+             f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>'
+             f'<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r>'
+             f'<a:rPr lang="en-US" sz="2000"><a:latin typeface="Times New Roman"/></a:rPr>'
+             f'<a:t>TIMES-FONT-TEST</a:t></a:r></a:p></p:txBody></p:sp>')
+    laser = ('<p14:laserTraceLst><p14:tracePtLst>' 
              f'<p14:tracePt t="200" x="{mx}" y="{my}"/>'
              f'<p14:tracePt t="1000" x="{mx}" y="{my}"/>'
              f'<p14:tracePt t="1800" x="{mx}" y="{my}"/>'
@@ -124,7 +130,7 @@ def build(path, cx, cy):
         z.writestr("_rels/.rels", ROOT_RELS)
         z.writestr("ppt/presentation.xml", pres(cx, cy))
         z.writestr("ppt/_rels/presentation.xml.rels", PRES_RELS)
-        z.writestr("ppt/slides/slide1.xml", slide_xml("Hello from Slide One", cx, cy, laser))
+        z.writestr("ppt/slides/slide1.xml", slide_xml("Hello from Slide One", cx, cy, laser, extra=font_shape))
         overflow_shape = (f'<p:sp><p:nvSpPr><p:cNvPr id="4" name="OverflowBox"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>'
             f'<p:spPr><a:xfrm><a:off x="500000" y="2500000"/><a:ext cx="{cx//4}" cy="{cy//12}"/></a:xfrm>'
             f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>'
@@ -139,7 +145,7 @@ def build(path, cx, cy):
         z.writestr("ppt/slideMasters/slideMaster1.xml", MASTER)
         z.writestr("ppt/slideMasters/_rels/slideMaster1.xml.rels", MASTER_RELS)
         z.writestr("ppt/theme/theme1.xml", THEME)
-        z.writestr("ppt/media/media1.wav", make_wav())
+        z.writestr("ppt/media/media1.wav", make_wav(40))
     print("wrote", path)
 
 if __name__ == "__main__":
