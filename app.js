@@ -636,7 +636,7 @@
     btn.textContent = "packaging…";
     try {
       const [css, appJs, ...libs] = await Promise.all(
-        ["styles.css", "app.js", ...CDN_SCRIPTS].map((u) => fetch(u).then((r) => {
+        ["styles.css", "app.js", ...CDN_SCRIPTS].map((u) => fetch(u, { cache: "no-cache" }).then((r) => {
           if (!r.ok) throw new Error(`fetch ${u}: ${r.status}`);
           return r.text();
         }))
